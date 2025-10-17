@@ -32,7 +32,13 @@ def load_florence_model(
 ) -> Tuple[Any, Any]:
     with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
         model = AutoModelForCausalLM.from_pretrained(
-            checkpoint, trust_remote_code=True).to(device).eval()
+            checkpoint, 
+            trust_remote_code=True,
+            # Use 'eager' attention implementation for compatibility with Florence-2-base;
+            # this avoids potential issues with unsupported or unavailable optimized attention backends,
+            # ensuring the model runs reliably across different environments, though it may be slower than 'flash' or 'sdpa'.
+            attn_implementation="eager"
+        ).to(device).eval()
         processor = AutoProcessor.from_pretrained(
             checkpoint, trust_remote_code=True)
         return model, processor
@@ -52,7 +58,8 @@ def run_florence_inference(
         input_ids=inputs["input_ids"],
         pixel_values=inputs["pixel_values"],
         max_new_tokens=1024,
-        num_beams=3
+        num_beams=4,        # Increase from 3 from other Florence2 examples
+        use_cache=False     # Needed to prevent error about "object has no attribute 'shape'"
     )
     generated_text = processor.batch_decode(
         generated_ids, skip_special_tokens=False)[0]
